@@ -1,0 +1,3 @@
+pillow
+sentence_transformers
+chromadb
