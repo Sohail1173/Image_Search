@@ -1,3 +1,5 @@
 pillow
 sentence_transformers
 chromadb
+langchain
+langchain_community
