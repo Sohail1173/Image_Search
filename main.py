@@ -1,6 +1,10 @@
 from PIL import Image
 from chromadb import PersistentClient
 from sentence_transformers import SentenceTransformer
+import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import matplotlib.image as img
+from pathlib import Path
 import os
 
 class Image_RAG:
@@ -10,6 +14,16 @@ class Image_RAG:
         self.collection=self.client.get_or_create_collection(name="image_embeddings")
         self.existing_data = []
         self.new_data = []
+
+
+    def embed_image(self,image_path):
+        try:
+            image=Image.open(image_path)
+            image_embedding=self.model_name.encode(image)
+            return image_embedding
+        except Exception as e:
+            print(f"Error Processing{image_path}:{e}")
+            return None
     def add_images_to_db(self, directory):
 
         if os.path.exists("chroma_db"):
@@ -39,8 +53,9 @@ class Image_RAG:
 
             for filename, path in batch:
                 try:
-                    image = Image.open(path)
-                    embedding = self.model_name.encode(image)  # Assuming encode returns vector
+                    # image = Image.open(path)
+                    # embedding = self.model_name.encode(image)  # Assuming encode returns vector
+                    embedding=self.embed_image(path)
                     embeddings.append(embedding)
                     ids.append(filename)
                     metadatas.append({"filename": filename, "source": path})
@@ -54,14 +69,31 @@ class Image_RAG:
                 metadatas=metadatas
             )
             print(f"Stored vectors for batch {i} to {i + len(batch)} successfully...")
+    def search_image(self,query_image_path, num_results=5):
+        if not query_image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+             raise ValueError("Please upload the image")
+             
+             
+
+        query_embedding =self.embed_image(query_image_path)
+        results = self.collection.query(query_embeddings=[query_embedding], n_results=num_results)
+        for result in results['ids'][0]:
+            # pass
+        # for did in results["distances"][0]:
+                print(f"images:{result}")
+               
+        # return None
 
    
         
 def main():
     rag=Image_RAG()
-    data=rag.add_images_to_db("image")
+    rag.add_images_to_db("image")
+    while True:
+        question=input("\nEnter your question (or 'quit' to exist)")
+        if question.lower()=='quit':
+                break
 
-     
-        
+        rag.search_image(question)
 if __name__ == "__main__":
         main()
