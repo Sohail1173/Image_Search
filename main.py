@@ -1,99 +1,62 @@
+from flask import Flask, request, send_file
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from PIL import Image
-from chromadb import PersistentClient
-from sentence_transformers import SentenceTransformer
-import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
-import matplotlib.image as img
-from pathlib import Path
-import os
+from dev import Image_RAG
+import io
 
-class Image_RAG:
-    def __init__(self):
-        self.model_name=SentenceTransformer("Clip-VIT-B-32")
-        self.client=PersistentClient(path="chroma_db")
-        self.collection=self.client.get_or_create_collection(name="image_embeddings")
-        self.existing_data = []
-        self.new_data = []
+app = Flask(__name__)
+CORS(app)
+limiter = Limiter(get_remote_address,app=app)
+
+# Configure maximum file size (16 mb)
+# app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+# Allowed file extensions
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    # return '.' in filename and 
+    return filename.rsplit('.',1)[1].lower() in ALLOWED_EXTENSIONS
+# [1].lower()
+    # in ALLOWED_EXTENSIONS
+
+@app.route('/Search_Image', methods=['POST'])
+@limiter.limit('100 per day')
+def resize_image():
+    try:
+        if 'file' not in request.files:
+            return {'error': 'No file part'}, 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return {'error': 'No selected file'}, 400
+
+        img = load_image(file)
+        if img is None:
+            return {'error': 'Invalid image file'}, 400
+
+        width = int(request.form.get('width', 100))
+        height = int(request.form.get('height', 100))
+
+        if width <= 0 or height <= 0:
+            return {'error': 'Invalid dimensions'}, 400
+
+        resized_img = img.resize((width, height))
+
+        img_io = io.BytesIO()
+        resized_img.save(img_io, format=img.format or 'JPEG')
+        img_io.seek(0)
+
+        return send_file(
+            img_io,
+            mimetype=f'image/{img.format.lower() if img.format else "jpeg"}'
+        )
+
+    except Exception as e:
+        return {'error': str(e)}, 500
 
 
-    def embed_image(self,image_path):
-        try:
-            image=Image.open(image_path)
-            image_embedding=self.model_name.encode(image)
-            return image_embedding
-        except Exception as e:
-            print(f"Error Processing{image_path}:{e}")
-            return None
-    def add_images_to_db(self, directory):
 
-        if os.path.exists("chroma_db"):
-            print("Fetching existing metadata from vector store")
-            entities = self.collection.get(include=["metadatas"])
-            if len(entities["metadatas"]) > 0:
-                self.existing_data = [entry["source"] for entry in entities["metadatas"]]
 
-    # Process new images
-        for filename in os.listdir(directory):
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
-                image_path = os.path.join(directory, filename)
-
-                if image_path in self.existing_data:
-                    print(f"URL {image_path} already exists in the vector store")
-                    continue  # skip already existing
-
-                self.new_data.append((filename, image_path))
-
-    # Add new images in batches
-        MAX_BATCH_SIZE = 100
-        for i in range(0, len(self.new_data), MAX_BATCH_SIZE):
-            batch = self.new_data[i:i + MAX_BATCH_SIZE]
-            embeddings = []
-            ids = []
-            metadatas = []
-
-            for filename, path in batch:
-                try:
-                    # image = Image.open(path)
-                    # embedding = self.model_name.encode(image)  # Assuming encode returns vector
-                    embedding=self.embed_image(path)
-                    embeddings.append(embedding)
-                    ids.append(filename)
-                    metadatas.append({"filename": filename, "source": path})
-                except Exception as e:
-                    print(f"Error processing image {path}: {e}")
-
-            if embeddings:
-                self.collection.add(
-                embeddings=embeddings,
-                ids=ids,
-                metadatas=metadatas
-            )
-            print(f"Stored vectors for batch {i} to {i + len(batch)} successfully...")
-    def search_image(self,query_image_path, num_results=5):
-        if not query_image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
-             raise ValueError("Please upload the image")
-             
-             
-
-        query_embedding =self.embed_image(query_image_path)
-        results = self.collection.query(query_embeddings=[query_embedding], n_results=num_results)
-        for result in results['ids'][0]:
-            # pass
-        # for did in results["distances"][0]:
-                print(f"images:{result}")
-               
-        # return None
-
-   
-        
-def main():
-    rag=Image_RAG()
-    rag.add_images_to_db("image")
-    while True:
-        question=input("\nEnter your question (or 'quit' to exist)")
-        if question.lower()=='quit':
-                break
-
-        rag.search_image(question)
-if __name__ == "__main__":
-        main()

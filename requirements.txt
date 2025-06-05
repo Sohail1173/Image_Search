@@ -3,3 +3,7 @@ sentence_transformers
 chromadb
 langchain
 langchain_community
+Flask
+flask-limiter
+flask-cors
+open-clip-torch
