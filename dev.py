@@ -7,7 +7,7 @@ import matplotlib.image as img
 from pathlib import Path
 from chromadb.utils.embedding_functions import OpenCLIPEmbeddingFunction
 from chromadb.utils.data_loaders import ImageLoader
-import uu
+# import uu
 import os
 import numpy as np
 
@@ -22,7 +22,7 @@ class Image_RAG:
         self.existing_data = []
         self.new_data = []
         self.category=[]
-
+        self.count=0
     def add_images_to_db(self, directory):
 
         if os.path.exists("chroma_db"):
@@ -31,6 +31,7 @@ class Image_RAG:
             if len(entities["metadatas"]) > 0:
                 self.existing_data = [entry["source"] for entry in entities["metadatas"]]
                 self.category = [entry["img_category"] for entry in entities["metadatas"]]
+                self.count=len([entry["img_category"] for entry in entities["metadatas"]])
 
         for filename in os.listdir(directory):
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
@@ -49,13 +50,13 @@ class Image_RAG:
             ids = []
             metadatas = []
             image_urls=[]
-            img_count=0
+            img_count=len(ids)
             for filename,path in batch:
                 try:
                     ids.append(filename)
                     image_urls.append(path)
                     img_count+=1
-                    metadatas.append({"filename": filename, "source": path,'img_category': 'people'},"img_count":)
+                    metadatas.append({"filename": filename, "source": path,'img_category': 'people'})
                 except Exception as e:
                     print(f"Error processing image {path}: {e}")
 
@@ -88,20 +89,20 @@ class Image_RAG:
         except Exception as e:
             print(f"Image search error: {e}")
 
-    def search_image_using_text(self, query_text, image_category="people"):
+    def search_image_using_text(self, query_text, image_category):
         try:
             if image_category not in self.category:
-                raise ValueError(f"Invalid category '{image_category}'. Choose from: {set(self.category)}")
+                raise ValueError(f"Invalid category::'{image_category}'. Choose from: {set(self.category)}")
             
-            category_count= self.collection.count()
-            print(f"category count:{category_count}")
+           
             
             results = self.collection.query(
                 query_texts=query_text,
-                n_results=category_count,
+                n_results=self.count,
                 where={'img_category': image_category}
             )
             
+
             if not results['ids'][0]:
                 print("No matches found for your query.")
             else:
@@ -131,7 +132,7 @@ def main():
             except Exception as e:
                 print(f"❌ Failed to load image: {e}")
         else:
-            category = input("Enter the image category (people, animal, food): ").strip().lower()
+            category = input("Enter the image category").strip().lower()
             rag.search_image_using_text(question, category)
 
 
